@@ -1,0 +1,57 @@
+
+  "name": "Nexus WhatsApp Booking Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "onReceived"
+      },
+      "id": "Webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250,300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = $input.first().json.body;\nconst message = body.messageData.textMessageData.textMessage;\nconst chatId = body.senderData.chatId;\nconst senderName = body.senderData.senderName;\n\nreturn {\n  message,\n  chatId,\n  senderName,\n  phone: chatId.replace('@c.us', '')\n};"
+      },
+      "id": "Extract Data",
+      "name": "Extract Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450,300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "أنت مساعد حجز مواعيد لعيادة. مهمتك تحجز موعد في أقل من 90 ثانية. اسأل عن: 1- الاسم 2- نوع الخدمة 3- اليوم والوقت المناسب. كن مختصر وودود. لا تكرر الأسئلة."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.message }}"
+            }
+          ]
+        }
+      },
+      "id": "OpenAI",
+      "name": "GPT-4 Booking Agent",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [650,300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Extract Data", "type": "main", "index": 0}]]
+    },
+    "Extract Data": {
+      "main": [[{"node": "GPT-4 Booking Agent", "type": "main", "index": 0}]]
+    }
+  }
+}
