@@ -1,44 +1,54 @@
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
-const pino = require('pino');
+sock.ev.on('messages.upsert', async (m) => {
+    const msg = m.messages[0]
+    if (!msg.message || msg.key.fromMe) return
 
-async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    
-    const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        logger: pino({ level: 'silent' })
-    });
+    const from = msg.key.remoteJid
+    const type = Object.keys(msg.message)[0] // يجيب نوع الرسالة
 
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        
-        if(qr) {
-            console.log('امسح الـ QR هذا بكاميرا واتساب:');
+    try {
+        // 1. نص عادي
+        if (type === 'conversation' || type === 'extendedTextMessage') {
+            const text = msg.message.conversation || msg.message.extendedTextMessage.text
+            await sock.sendMessage(from, { text: `وصلني نصك: "${text}" ✅` })
         }
-        
-        if(connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode!== DisconnectReason.loggedOut;
-            console.log('الاتصال انقطع، جاري إعادة المحاولة...');
-            if(shouldReconnect) startBot();
-        } else if(connection === 'open') {
-            console.log('✅ تم ربط واتساب بنجاح - TahBot شغال');
+
+        // 2. صورة
+        else if (type === 'imageMessage') {
+            await sock.sendMessage(from, { text: 'صورة جميلة 📸 وصلت' })
         }
-    });
 
-    sock.ev.on('messages.upsert', async (m) => {
-        const msg = m.messages[0];
-        if (!msg.message || msg.key.fromMe) return;
-
-        const from = msg.key.remoteJid;
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-        
-        if (text.toLowerCase() === 'مرحبا') {
-            await sock.sendMessage(from, { text: 'أهلاً فيك 👋 TahBot شغال تمام' });
+        // 3. فيديو
+        else if (type === 'videoMessage') {
+            await sock.sendMessage(from, { text: 'الفيديو وصل 🎬' })
         }
-    });
-}
 
-startBot();
+        // 4. فويس
+        else if (type === 'audioMessage') {
+            await sock.sendMessage(from, { text: 'فويسك وصل 🎤 بس ما أقدر أسمعه حالياً' })
+        }
+
+        // 5. ملصق
+        else if (type === 'stickerMessage') {
+            await sock.sendMessage(from, { text: 'ملصق رهيب 😂' })
+        }
+
+        // 6. مستند
+        else if (type === 'documentMessage') {
+            await sock.sendMessage(from, { text: 'استلمت الملف 📄' })
+        }
+
+        // 7. أي شي ثاني
+        else {
+            await sock.sendMessage(from, { text: 'وصلني شي جديد 😅 بس ما عرفته' })
+        }
+
+    } catch (e) {
+        console.log('خطأ:', e)
+    }
+})
+
+// يرفض المكالمات تلقائي ويرسل رسالة
+sock.ev.on('call', async (call) => {
+    await sock.sendMessage(call.from, { text: 'أنا بوت ما أقدر أرد مكالمات 📵 أرسل رسالة' })
+    await sock.rejectCall(call.id, call.from)
+})
